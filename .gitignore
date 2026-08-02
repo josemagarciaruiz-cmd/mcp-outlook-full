@@ -1,0 +1,15 @@
+# Secretos y entorno
+.env
+*.bak-*
+token_cache.bin
+.outlook-mcp/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.DS_Store
+
+# Logs
+*.log
