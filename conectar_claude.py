@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
 """
-Registra en Claude Desktop los DOS conectores locales de Outlook:
-  - 'outlook'        -> python -m outlook_mcp stdio   (conector COMPLETO: 63 herramientas
-                        de correo, calendario, tareas, OneDrive, contactos, directorio)
-  - 'agente-outlook' -> agent.py                      (el "puente con el disco": adjuntar
-                        ficheros del ordenador, guardar adjuntos, export .eml, OneDrive<->disco)
-Ambos por stdio, con el mismo entorno del .env de esta carpeta y el MISMO venv.
+Registra en Claude Desktop los conectores locales de Outlook.
 
-IMPORTANTE: ejecutar con Claude COMPLETAMENTE CERRADO (si esta abierto, al cerrarse
-sobrescribe el cambio). El script lo detecta y se niega si Claude esta abierto
-(usa --force para saltarte la comprobacion).
+Por defecto (paquete completo de cliente):
+  - 'outlook'        -> python -m outlook_mcp stdio   (conector COMPLETO)
+  - 'agente-outlook' -> agent.py                      (puente con el disco)
+
+Con la bandera --solo-agente (o --agent-only): registra SOLO 'agente-outlook'
+y no exige el paquete del conector. Útil para instalar únicamente el puente.
+
+El conector y el agente se ejecutan DESDE EL ÁRBOL DE ORIGEN de esta carpeta
+(vía PYTHONPATH), sin instalación editable: así el paquete funciona offline sin
+necesitar backend de compilación.
+
+IMPORTANTE: ejecutar con Claude COMPLETAMENTE CERRADO (si esta abierto, al
+cerrarse sobrescribe el cambio). Se niega si Claude esta abierto (--force lo salta).
 """
 import json, os, sys, shutil, time, platform, subprocess
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 ENVP = os.path.join(HERE, ".env")
+SOLO = ("--solo-agente" in sys.argv) or ("--agent-only" in sys.argv)
 
 
 def config_path():
@@ -83,7 +89,11 @@ def main():
     else:
         py = os.path.join(HERE, ".venv/bin/python")
     agent = os.path.join(HERE, "agent.py")
-    for f in (py, agent):
+    requeridos = [py, agent]
+    if not SOLO:
+        # el conector completo se ejecuta desde el árbol de origen (outlook_mcp/)
+        requeridos.append(os.path.join(HERE, "outlook_mcp", "__init__.py"))
+    for f in requeridos:
         if not os.path.exists(f):
             sys.exit("ERROR: falta " + f + " (ejecuta antes el instalador).")
 
@@ -94,10 +104,13 @@ def main():
     allowed = sep.join(partes) if partes else os.path.expanduser("~")
 
     tz = ev.get("OUTLOOK_TIMEZONE", "Europe/Madrid")
+    # PYTHONPATH = esta carpeta -> permite 'python -m outlook_mcp' y 'import outlook_mcp'
+    # sin instalación editable (imprescindible para el paquete offline).
     base_env = {
         "OUTLOOK_CLIENT_ID": ev["OUTLOOK_CLIENT_ID"],
         "OUTLOOK_TENANT_ID": ev["OUTLOOK_TENANT_ID"],
         "OUTLOOK_TIMEZONE": tz,
+        "PYTHONPATH": HERE,
     }
     if ev.get("OUTLOOK_TOKEN_CACHE"):
         base_env["OUTLOOK_TOKEN_CACHE"] = os.path.expanduser(ev["OUTLOOK_TOKEN_CACHE"])
@@ -111,24 +124,26 @@ def main():
         d = {}
     d.setdefault("mcpServers", {})
 
-    # Conector COMPLETO (63 herramientas)
-    d["mcpServers"]["outlook"] = {
-        "command": py, "args": ["-m", "outlook_mcp", "stdio"],
-        "env": dict(base_env, MCP_TRANSPORT="stdio"),
-    }
-    # Agente local (puente con el disco)
+    # Conector COMPLETO — solo si NO estamos en modo --solo-agente
+    if not SOLO:
+        d["mcpServers"]["outlook"] = {
+            "command": py, "args": ["-m", "outlook_mcp", "stdio"],
+            "env": dict(base_env, MCP_TRANSPORT="stdio"),
+        }
+    # Agente local (puente con el disco) — siempre
     d["mcpServers"]["agente-outlook"] = {
         "command": py, "args": [agent],
         "env": dict(base_env, MCP_TRANSPORT="stdio", OUTLOOK_ALLOWED_DIRS=allowed),
     }
     json.dump(d, open(cfg, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 
-    print("OK. Conectores dados de alta: 'outlook' (completo, 63 herramientas) y")
-    print("    'agente-outlook' (puente con tu disco).")
+    if SOLO:
+        print("OK. Registrado SOLO 'agente-outlook' (puente con tu disco).")
+    else:
+        print("OK. Registrados 'outlook' (completo) y 'agente-outlook' (puente con tu disco).")
     print("  Config:     " + cfg)
     print("  Carpetas:   " + allowed)
     print("  Conectores: " + ", ".join(d["mcpServers"].keys()))
-    print("\nAbre Claude y prueba: 'usa outlook para ver mis ultimos correos'.")
 
 
 if __name__ == "__main__":

@@ -2,9 +2,9 @@
 
 Instala en tu ordenador, de una vez, **los dos conectores** de Outlook / Microsoft 365:
 
-- **`outlook`** — el conector **completo** (63 herramientas): correo, calendario,
-  tareas (To-Do), OneDrive, contactos y directorio. Le hablas en español a la IA y
-  ejecuta el trabajo en tu buzón.
+- **`outlook`** — el conector **completo** (117 herramientas): correo, calendario,
+  tareas (To-Do), OneDrive, SharePoint, Excel, Teams, contactos y directorio. Le hablas
+  en español a la IA y ejecuta el trabajo en tu buzón.
 - **`agente-outlook`** — el **puente con tu disco**: adjuntar a un correo ficheros de
   tu ordenador, guardar adjuntos en una carpeta, exportar `.eml`, y subir/bajar
   entre disco y OneDrive. Solo toca las carpetas de `OUTLOOK_ALLOWED_DIRS`.
@@ -26,15 +26,23 @@ código) y da de alta `outlook` y `agente-outlook` en Claude Desktop.
 > Antes del primer arranque debes rellenar `.env` con `OUTLOOK_CLIENT_ID` y
 > `OUTLOOK_TENANT_ID`. Cómo obtenerlos, paso a paso, más abajo.
 
+El instalador **elige el intérprete** con el lanzador `py` (3.13 → 3.12 → 3.11) y, si
+hay carpeta `wheels/`, instala **sin internet**; el conector se ejecuta **desde el árbol
+de origen** (vía `PYTHONPATH`), sin instalación editable.
+
 ### Manual (equivalente)
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
+python3 -m venv .venv && source .venv/bin/activate      # (Windows: py -3.13 -m venv .venv)
+pip install -r requirements.txt                          # (offline: --no-index --find-links wheels)
+export PYTHONPATH="$PWD"                                  # correr desde el árbol de origen
 cp .env.example .env          # y rellena CLIENT_ID, TENANT_ID y ALLOWED_DIRS
 python -m outlook_mcp login   # navegador: teclea el código UNA vez
-python conectar_claude.py     # con Claude CERRADO
+python conectar_claude.py     # con Claude CERRADO  (o --solo-agente para registrar solo el puente)
 ```
+
+**Modo solo-agente:** `python conectar_claude.py --solo-agente` registra únicamente
+`agente-outlook` (el puente con el disco), sin el conector completo.
 
 ---
 
@@ -97,6 +105,27 @@ Si amplías permisos en Azure más adelante, repite `python -m outlook_mcp login
 volver a consentir.
 
 ---
+
+## Distribución a un cliente — el checklist de 3 pasos
+
+Cada cliente usa **SU propia app de Microsoft y SUS claves** (no las del proveedor), y
+**el token se genera en el ordenador del cliente** durante la instalación, cuando él
+inicia sesión y consiente. **El token nunca viaja** por correo ni por la nube.
+
+> **Microsoft ≠ Google:** esta app de escritorio es de **cliente público**, así que
+> **NO lleva "client secret"**. El cliente solo necesita **Client ID + Tenant ID** en su
+> `.env`; no hay ningún secreto que distribuir ni que pueda filtrarse.
+
+1. **Generar sus claves.** El cliente (o tú guiándole por pantalla compartida) registra
+   una app en su Azure (Entra ID) y copia **Client ID** y **Tenant ID** (ver "Variables
+   de Azure"). Sin secreto.
+2. **Meterlas en su instalador único.** Se le entrega **su** ZIP del paquete completo
+   (conector + agente, con `wheels/` para instalar sin internet) y se ponen sus dos
+   valores en el `.env`. Ese ZIP es **de uso exclusivo de ese cliente**.
+3. **Decirle a Claude que lo instale.** Un Claude que maneje el ordenador (Cowork/Code)
+   conduce los pasos; **el cliente pone su login y su consentimiento** (Claude no teclea
+   contraseñas). El **doble clic** en `INSTALAR_WINDOWS.bat` / `INSTALAR_MAC.command` es
+   la alternativa.
 
 ## Seguridad
 

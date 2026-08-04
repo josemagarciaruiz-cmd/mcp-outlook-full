@@ -35,6 +35,9 @@ DEFAULT_SCOPES = [
     "Calendars.ReadWrite.Shared",   # calendarios compartidos/de otros
     "People.Read",                  # personas frecuentes (buscar emails)
     "User.ReadBasic.All",           # directorio de la organizacion
+    "OnlineMeetings.ReadWrite",     # Teams: crear reuniones, asistencia
+    "Presence.Read",                # Teams: presencia (disponible/ocupado/en llamada)
+    "Sites.ReadWrite.All",          # SharePoint: bibliotecas de documentos del despacho (consentimiento admin)
 ]
 SCOPES = [
     s.strip()

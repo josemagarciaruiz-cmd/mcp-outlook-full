@@ -164,10 +164,26 @@ async def onedrive_upload(dest_path: str, data: bytes, content_type: str = "appl
 
 async def download_item(item_id: str) -> bytes:
     """Descarga el contenido de un item de OneDrive (sigue la redirección)."""
+    return await get_content(f"/me/drive/items/{item_id}/content")
+
+
+async def get_json(url: str, params: dict | None = None) -> dict:
+    """GET que devuelve JSON, admitiendo ruta relativa o URL absoluta (p.ej. un
+    deltaLink/nextLink de Graph). Conserva claves @odata.* (deltaLink, nextLink)."""
     client = _get_client()
-    resp = await client.get(
-        f"/me/drive/items/{item_id}/content", headers=_auth_headers(), follow_redirects=True
-    )
+    resp = await client.get(url, headers=_auth_headers(), params=params, follow_redirects=True)
+    _raise_for_graph(resp)
+    return resp.json()
+
+
+async def get_content(path: str) -> bytes:
+    """GET binario de un endpoint /content (OneDrive o SharePoint), siguiendo redirecciones.
+
+    Sirve para descargar cualquier drive (/me/drive, /drives/{id}, /sites/.../drive)
+    y para conversión (p.ej. .../content?format=pdf).
+    """
+    client = _get_client()
+    resp = await client.get(path, headers=_auth_headers(), follow_redirects=True)
     _raise_for_graph(resp)
     return resp.content
 

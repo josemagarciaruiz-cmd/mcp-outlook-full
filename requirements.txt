@@ -1,0 +1,12 @@
+# Dependencias del conector Outlook completo (conector + agente), un solo venv.
+# El paquete outlook_mcp NO se instala: se ejecuta desde el árbol de origen vía
+# PYTHONPATH, así el instalador offline no necesita backend de compilación.
+mcp[cli]>=2.0,<3
+msal>=1.28
+httpx>=0.27
+uvicorn>=0.30
+pydantic>=2.6
+# Dependencias solo-Windows que un 'pip download' cruzado se deja fuera y que
+# 'mcp' necesita en Windows. El marcador evita instalarlas en macOS/Linux.
+pywin32>=306 ; sys_platform == "win32"
+colorama>=0.4 ; sys_platform == "win32"
