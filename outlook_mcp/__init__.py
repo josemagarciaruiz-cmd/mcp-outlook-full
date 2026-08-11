@@ -1,3 +1,3 @@
 """Servidor MCP para correo y calendario de Outlook / Microsoft 365."""
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"

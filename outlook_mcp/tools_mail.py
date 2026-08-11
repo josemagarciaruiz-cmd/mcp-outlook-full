@@ -350,6 +350,66 @@ def register(mcp) -> None:
         return {"status": "sent", "message_id": message_id}
 
     @mcp.tool(annotations={"readOnlyHint": False, "openWorldHint": True})
+    async def mail_update_draft(
+        message_id: Annotated[str, Field(description="Id del BORRADOR a editar")],
+        subject: Annotated[Optional[str], Field(None, description="Nuevo asunto")] = None,
+        body: Annotated[Optional[str], Field(None, description="Nuevo cuerpo del mensaje")] = None,
+        body_type: Annotated[str, Field("HTML", description="HTML o Text")] = "HTML",
+        to: Annotated[Optional[list[str]], Field(None, description="Reemplaza los destinatarios")] = None,
+        cc: Annotated[Optional[list[str]], Field(None, description="Reemplaza la copia")] = None,
+        bcc: Annotated[Optional[list[str]], Field(None, description="Reemplaza la copia oculta")] = None,
+    ) -> dict:
+        """Edita un BORRADOR ya existente: cambia asunto, cuerpo o destinatarios,
+        CONSERVANDO sus adjuntos. Ideal cuando dejas un borrador con tus documentos
+        adjuntos para que yo le redacte el texto y luego lo envíe con mail_send_draft.
+
+        Solo funciona sobre borradores: Graph no permite editar el cuerpo/asunto de un
+        correo ya enviado o recibido (para esos, usa mail_update: leído/categorías...).
+        """
+        helpers.guard_write()
+        patch: dict = {}
+        if subject is not None:
+            patch["subject"] = subject
+        if body is not None:
+            patch["body"] = helpers.body(body, body_type)
+        if to is not None:
+            patch["toRecipients"] = helpers.recipients(to)
+        if cc is not None:
+            patch["ccRecipients"] = helpers.recipients(cc)
+        if bcc is not None:
+            patch["bccRecipients"] = helpers.recipients(bcc)
+        if not patch:
+            raise ValueError("Indica al menos un campo a cambiar (subject, body, to, cc o bcc).")
+        meta = await graph.request("GET", f"/me/messages/{message_id}", params={"$select": "isDraft"})
+        if not meta.get("isDraft"):
+            raise ValueError(
+                "Ese correo NO es un borrador. Graph solo deja editar asunto/cuerpo/destinatarios "
+                "de BORRADORES. Si quieres reenviarlo o responderlo, usa mail_forward / mail_reply."
+            )
+        res = await graph.request("PATCH", f"/me/messages/{message_id}", json=patch)
+        return fmt.fmt_message(res, full=True)
+
+    @mcp.tool(annotations={"readOnlyHint": False, "openWorldHint": True})
+    async def mail_add_attachments(
+        message_id: Annotated[str, Field(description="Id del BORRADOR al que añadir adjuntos")],
+        attachment_paths: Annotated[Optional[list[str]], Field(None, description="Rutas de ficheros a adjuntar (conector local; el servidor los lee)")] = None,
+        attachment_urls: Annotated[Optional[list[str]], Field(None, description="URLs http(s) de ficheros a adjuntar (el servidor las descarga; sirve también en VPS)")] = None,
+        attachments: Annotated[Optional[list[dict]], Field(None, description="Adjuntos {path} o {name, contentType, contentBytes}")] = None,
+    ) -> dict:
+        """Añade adjuntos a un BORRADOR ya creado (por ruta local o por URL/OneDrive).
+
+        Grandes (>3 MB) por subida troceada. Útil para completar un borrador antes de
+        enviarlo con mail_send_draft.
+        """
+        helpers.guard_write()
+        resolved = helpers.resolve_local(list(attachments or []) + [{"path": p} for p in (attachment_paths or [])])
+        for u in (attachment_urls or []):
+            resolved.append(await graph.fetch_attachment(u))
+        small, large = helpers.classify(resolved)
+        await graph.add_attachments(message_id, small, large)
+        return {"message_id": message_id, "adjuntos_anadidos": len(small) + len(large)}
+
+    @mcp.tool(annotations={"readOnlyHint": False, "openWorldHint": True})
     async def mail_reply(
         message_id: Annotated[str, Field(description="Id del mensaje al que responder")],
         comment: Annotated[str, Field(description="Texto de la respuesta")],
