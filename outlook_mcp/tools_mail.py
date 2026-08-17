@@ -410,6 +410,38 @@ def register(mcp) -> None:
         return {"message_id": message_id, "adjuntos_anadidos": len(small) + len(large)}
 
     @mcp.tool(annotations={"readOnlyHint": False, "openWorldHint": True})
+    async def mail_remove_attachments(
+        message_id: Annotated[str, Field(description="Id del BORRADOR del que quitar adjuntos")],
+        attachment_ids: Annotated[Optional[list[str]], Field(None, description="Ids concretos de adjuntos (de mail_list_attachments)")] = None,
+        names: Annotated[Optional[list[str]], Field(None, description="O por NOMBRE: borra los adjuntos cuyo nombre coincida (útil para sustituir sin duplicar)")] = None,
+    ) -> dict:
+        """Elimina adjuntos de un BORRADOR, por id o por nombre.
+
+        Pensado para SUSTITUIR un adjunto sin dejar duplicados: borra el antiguo con
+        este (por nombre) y añade el nuevo con mail_add_attachments. Solo borradores:
+        Graph no deja quitar adjuntos de un correo ya enviado o recibido.
+        """
+        helpers.guard_write()
+        if not attachment_ids and not names:
+            raise ValueError("Indica attachment_ids o names (al menos uno).")
+        meta = await graph.request("GET", f"/me/messages/{message_id}", params={"$select": "isDraft"})
+        if not meta.get("isDraft"):
+            raise ValueError("Ese correo NO es un borrador: Graph solo permite quitar adjuntos de borradores.")
+        to_delete = list(attachment_ids or [])
+        borrados = []
+        if names:
+            res = await graph.request("GET", f"/me/messages/{message_id}/attachments", params={"$select": "id,name"})
+            for a in (res.get("value", []) if isinstance(res, dict) else []):
+                if a.get("name") in names:
+                    to_delete.append(a.get("id"))
+        for aid in to_delete:
+            if not aid:
+                continue
+            await graph.request("DELETE", f"/me/messages/{message_id}/attachments/{aid}")
+            borrados.append(aid)
+        return {"message_id": message_id, "adjuntos_borrados": len(borrados)}
+
+    @mcp.tool(annotations={"readOnlyHint": False, "openWorldHint": True})
     async def mail_reply(
         message_id: Annotated[str, Field(description="Id del mensaje al que responder")],
         comment: Annotated[str, Field(description="Texto de la respuesta")],

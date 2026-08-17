@@ -67,7 +67,7 @@ Convenciones:
 
 def build_server() -> MCPServer:
     # En mcp 2.0 host/port van en run()/streamable_http_app(), no en el constructor.
-    mcp = MCPServer("outlook", instructions=INSTRUCTIONS, version="0.11.0")
+    mcp = MCPServer("outlook", instructions=INSTRUCTIONS, version="0.12.0")
 
     @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
     async def whoami() -> dict:
